@@ -215,6 +215,51 @@ CREATE TABLE `students` (
 -- Dumping data for table `students`
 --
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `student_fields`
+--
+
+CREATE TABLE `student_fields` (
+  `id` int(6) NOT NULL,
+  `field_key` varchar(50) NOT NULL,
+  `field_label` varchar(100) NOT NULL,
+  `field_type` varchar(20) NOT NULL DEFAULT 'text',
+  `options` text NULL,
+  `is_required` tinyint(1) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `display_order` int NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `student_field_values`
+--
+
+CREATE TABLE `student_field_values` (
+  `id` int(8) NOT NULL,
+  `regno` varchar(100) NOT NULL,
+  `field_id` int NOT NULL,
+  `field_value` text NULL,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `student_fields`
+--
+
+INSERT INTO `student_fields` (`id`, `field_key`, `field_label`, `field_type`, `options`, `is_required`, `is_active`, `display_order`) VALUES
+(1, 'class', 'Class', 'text', NULL, 0, 1, 10),
+(2, 'department', 'Department', 'text', NULL, 0, 1, 20),
+(3, 'faculty', 'Faculty', 'text', NULL, 0, 1, 30),
+(4, 'blood_group', 'Blood Group', 'dropdown', 'A,B,AB,O', 0, 1, 40),
+(5, 'blood_genotype', 'Blood Genotype', 'dropdown', 'AA,AS,SS,AC', 0, 1, 50),
+(6, 'phone', 'Phone', 'text', NULL, 0, 1, 60),
+(7, 'email', 'Email', 'text', NULL, 0, 1, 70),
+(8, 'address', 'Address', 'multiline', NULL, 0, 1, 80),
+(9, 'date_of_birth', 'Date of Birth', 'date', NULL, 0, 1, 90);
+
 
 
 
@@ -293,6 +338,23 @@ ALTER TABLE `students`
   ADD UNIQUE KEY `regno_unique` (`regno`);
 
 --
+-- Indexes for table `student_fields`
+--
+ALTER TABLE `student_fields`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `field_key_unique` (`field_key`),
+  ADD UNIQUE KEY `field_label_unique` (`field_label`);
+
+--
+-- Indexes for table `student_field_values`
+--
+ALTER TABLE `student_field_values`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `regno_field_unique` (`regno`, `field_id`),
+  ADD KEY `field_id_index` (`field_id`),
+  ADD KEY `regno_index` (`regno`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -343,6 +405,18 @@ ALTER TABLE `sessions`
 --
 ALTER TABLE `students`
   MODIFY `id` int(8) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `student_fields`
+--
+ALTER TABLE `student_fields`
+  MODIFY `id` int(6) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+
+--
+-- AUTO_INCREMENT for table `student_field_values`
+--
+ALTER TABLE `student_field_values`
+  MODIFY `id` int(8) NOT NULL AUTO_INCREMENT;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

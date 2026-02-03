@@ -26,16 +26,19 @@ Public Class SessionSetup
         FormBorderStyle = FormBorderStyle.FixedDialog
         MaximizeBox = False
         MinimizeBox = False
-        Size = New Size(520, 320)
+        Size = New Size(640, 420)
 
         Dim layout As New TableLayoutPanel With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
-            .RowCount = 7,
+            .RowCount = 6,
             .Padding = New Padding(16)
         }
         layout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F))
         layout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 65.0F))
+        For i As Integer = 0 To 5
+            layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Next
 
         dtSessionDate = New DateTimePicker With {.Format = DateTimePickerFormat.Short, .Dock = DockStyle.Fill}
         txtDayName = New TextBox With {.Dock = DockStyle.Fill}
@@ -44,12 +47,12 @@ Public Class SessionSetup
         txtCourseName = New TextBox With {.Dock = DockStyle.Fill}
         cmbSessions = New ComboBox With {.Dock = DockStyle.Fill, .DropDownStyle = ComboBoxStyle.DropDownList}
 
-        btnSave = New Button With {.Text = "Create Session", .Dock = DockStyle.Fill, .Height = 32}
-        btnNew = New Button With {.Text = "New", .Dock = DockStyle.Fill, .Height = 32}
-        btnUpdate = New Button With {.Text = "Update", .Dock = DockStyle.Fill, .Height = 32}
-        btnDelete = New Button With {.Text = "Delete", .Dock = DockStyle.Fill, .Height = 32}
-        btnReload = New Button With {.Text = "Reload", .Dock = DockStyle.Fill, .Height = 32}
-        btnSetActive = New Button With {.Text = "Set Active", .Dock = DockStyle.Fill, .Height = 32}
+        btnSave = New Button With {.Text = "Create Session", .Width = 100, .Height = 32}
+        btnNew = New Button With {.Text = "New", .Width = 70, .Height = 32}
+        btnUpdate = New Button With {.Text = "Update", .Width = 70, .Height = 32}
+        btnDelete = New Button With {.Text = "Delete", .Width = 70, .Height = 32}
+        btnReload = New Button With {.Text = "Reload", .Width = 70, .Height = 32}
+        btnSetActive = New Button With {.Text = "Set Active", .Width = 85, .Height = 32}
 
         layout.Controls.Add(New Label With {.Text = "Session Date:", .AutoSize = True, .Anchor = AnchorStyles.Left}, 0, 0)
         layout.Controls.Add(dtSessionDate, 1, 0)
@@ -65,19 +68,21 @@ Public Class SessionSetup
         layout.Controls.Add(cmbSessions, 1, 5)
 
         Dim buttonPanel As New FlowLayoutPanel With {
-            .Dock = DockStyle.Fill,
-            .FlowDirection = FlowDirection.RightToLeft,
-            .AutoSize = True
+            .Dock = DockStyle.Bottom,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .WrapContents = False,
+            .Height = 50,
+            .Padding = New Padding(12, 8, 12, 8)
         }
-        buttonPanel.Controls.Add(btnSetActive)
-        buttonPanel.Controls.Add(btnReload)
-        buttonPanel.Controls.Add(btnDelete)
-        buttonPanel.Controls.Add(btnUpdate)
-        buttonPanel.Controls.Add(btnSave)
         buttonPanel.Controls.Add(btnNew)
-        layout.Controls.Add(buttonPanel, 1, 6)
+        buttonPanel.Controls.Add(btnSave)
+        buttonPanel.Controls.Add(btnUpdate)
+        buttonPanel.Controls.Add(btnDelete)
+        buttonPanel.Controls.Add(btnReload)
+        buttonPanel.Controls.Add(btnSetActive)
 
         Controls.Add(layout)
+        Controls.Add(buttonPanel)
 
         AddHandler btnSave.Click, AddressOf SaveSession
         AddHandler btnNew.Click, AddressOf NewSession

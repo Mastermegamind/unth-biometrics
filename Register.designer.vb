@@ -39,6 +39,8 @@ Partial Class Register
         Me.label2 = New System.Windows.Forms.Label()
         Me.Panel2 = New System.Windows.Forms.Panel()
         Me.GroupBox1 = New System.Windows.Forms.GroupBox()
+        Me.grpCustomFields = New System.Windows.Forms.GroupBox()
+        Me.flpCustomFields = New System.Windows.Forms.FlowLayoutPanel()
         Me.cmbDept = New System.Windows.Forms.ComboBox()
         Me.Label1 = New System.Windows.Forms.Label()
         Me.cmbFaculty = New System.Windows.Forms.ComboBox()
@@ -51,6 +53,7 @@ Partial Class Register
         CType(Me.pictureBox1, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.Panel2.SuspendLayout()
         Me.GroupBox1.SuspendLayout()
+        Me.grpCustomFields.SuspendLayout()
         Me.SuspendLayout()
         '
         'lblPrompt
@@ -198,7 +201,7 @@ Partial Class Register
         Me.Panel2.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle
         Me.Panel2.Controls.Add(Me.btnCancel)
         Me.Panel2.Controls.Add(Me.btnSubmit)
-        Me.Panel2.Location = New System.Drawing.Point(102, 417)
+        Me.Panel2.Location = New System.Drawing.Point(102, 555)
         Me.Panel2.Name = "Panel2"
         Me.Panel2.Size = New System.Drawing.Size(226, 52)
         Me.Panel2.TabIndex = 395
@@ -229,6 +232,24 @@ Partial Class Register
         Me.GroupBox1.Size = New System.Drawing.Size(751, 368)
         Me.GroupBox1.TabIndex = 394
         Me.GroupBox1.TabStop = False
+        '
+        'grpCustomFields
+        '
+        Me.grpCustomFields.Controls.Add(Me.flpCustomFields)
+        Me.grpCustomFields.Font = New System.Drawing.Font("Times New Roman", 12.0!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.grpCustomFields.Location = New System.Drawing.Point(37, 402)
+        Me.grpCustomFields.Name = "grpCustomFields"
+        Me.grpCustomFields.Size = New System.Drawing.Size(751, 140)
+        Me.grpCustomFields.TabIndex = 405
+        Me.grpCustomFields.TabStop = False
+        Me.grpCustomFields.Text = "Additional Fields"
+        '
+        'flpCustomFields
+        '
+        Me.flpCustomFields.AutoScroll = True
+        Me.flpCustomFields.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.flpCustomFields.FlowDirection = System.Windows.Forms.FlowDirection.TopDown
+        Me.flpCustomFields.WrapContents = False
         '
         'cmbDept
         '
@@ -316,7 +337,8 @@ Partial Class Register
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.BackColor = System.Drawing.Color.White
-        Me.ClientSize = New System.Drawing.Size(800, 488)
+        Me.ClientSize = New System.Drawing.Size(800, 640)
+        Me.Controls.Add(Me.grpCustomFields)
         Me.Controls.Add(Me.Panel2)
         Me.Controls.Add(Me.GroupBox1)
         Me.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle
@@ -330,6 +352,7 @@ Partial Class Register
         Me.Panel2.ResumeLayout(False)
         Me.GroupBox1.ResumeLayout(False)
         Me.GroupBox1.PerformLayout()
+        Me.grpCustomFields.ResumeLayout(False)
         Me.ResumeLayout(False)
 
     End Sub
@@ -356,4 +379,6 @@ Partial Class Register
     Friend WithEvents btnImportStudents As Button
     Friend WithEvents btnExportStudents As Button
     Friend WithEvents btnImportPhotos As Button
+    Friend WithEvents grpCustomFields As GroupBox
+    Friend WithEvents flpCustomFields As FlowLayoutPanel
 End Class

@@ -25,6 +25,8 @@ Public Class Register
 
     Private ReadOnly SectionLookup As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
     Private ReadOnly YearLookup As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+    Private ReadOnly CustomFields As New List(Of StudentFieldDef)()
+    Private ReadOnly CustomFieldControls As New Dictionary(Of Integer, Control)()
 
     Private Function GetPassportFolder() As String
         Dim folder As String = Path.Combine(Application.StartupPath, "Passports")
@@ -141,9 +143,11 @@ Public Class Register
             'Label3.Text = "0"
 
             'Get the current frame form capture device
-            currentFrame = grabber.QueryFrame().Resize(250, 192, Emgu.CV.CvEnum.INTER.CV_INTER_CUBIC)
+            currentFrame = grabber.QueryFrame()
+            If currentFrame Is Nothing Then
+                Return
+            End If
 
-            'Show the faces procesed and recognized
             pictureBox1.Image = currentFrame.ToBitmap()
 
         Catch ex As Exception
@@ -183,8 +187,10 @@ Public Class Register
     Private Sub Register_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         cmbFaculty.DropDownStyle = ComboBoxStyle.DropDownList
         cmbDept.DropDownStyle = ComboBoxStyle.DropDownList
+        pictureBox1.SizeMode = PictureBoxSizeMode.Zoom
         LoadSections()
         LoadYears()
+        LoadCustomFields()
         GenerateID()
     End Sub
 
@@ -213,6 +219,11 @@ Public Class Register
             End If
             If GetSelectedYearId() Is DBNull.Value Then
                 MessageBox.Show("Year is required.")
+                Return
+            End If
+
+            Dim customValues As Dictionary(Of Integer, String) = CollectCustomFieldValues()
+            If customValues Is Nothing Then
                 Return
             End If
 
@@ -251,6 +262,10 @@ Public Class Register
                 End Using
             End Using
 
+            If customValues.Count > 0 Then
+                StudentFieldStore.UpsertFieldValues(regNo, customValues)
+            End If
+
             AuditLogger.LogAction("StudentRegister", regNo & " | " & txtName.Text.Trim())
 
             Reset()
@@ -272,6 +287,7 @@ Public Class Register
         cmbFaculty.SelectedIndex = -1
         cmbGender.SelectedIndex = -1
         pictureBox1.Image = Nothing
+        ResetCustomFields()
 
     End Sub
 
@@ -287,7 +303,7 @@ Public Class Register
                 MessageBox.Show("Unsupported image type.")
                 Return
             End If
-            pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage
+            pictureBox1.SizeMode = PictureBoxSizeMode.Zoom
             pictureBox1.Image = New Bitmap(OpenFileDialog.FileName)
         End If
     End Sub
@@ -392,7 +408,10 @@ Public Class Register
 
     Private Sub Timer1_Tick_1(sender As Object, e As EventArgs) Handles Timer1.Tick
         Try
-            currentFrame = grabber.QueryFrame().Resize(240, 240, Emgu.CV.CvEnum.INTER.CV_INTER_CUBIC)
+            currentFrame = grabber.QueryFrame()
+            If currentFrame Is Nothing Then
+                Return
+            End If
             pictureBox1.Image = currentFrame.ToBitmap()
 
         Catch ex As Exception
@@ -436,6 +455,150 @@ Public Class Register
                 End Using
             End Using
         End Using
+    End Sub
+
+    Private Sub LoadCustomFields()
+        CustomFields.Clear()
+        CustomFieldControls.Clear()
+        If flpCustomFields Is Nothing Then
+            Return
+        End If
+
+        flpCustomFields.SuspendLayout()
+        flpCustomFields.Controls.Clear()
+
+        Dim fields As List(Of StudentFieldDef) = StudentFieldStore.GetActiveFields()
+        If fields Is Nothing OrElse fields.Count = 0 Then
+            flpCustomFields.ResumeLayout()
+            Return
+        End If
+
+        For Each field As StudentFieldDef In fields
+            CustomFields.Add(field)
+            Dim rowWidth As Integer = Math.Max(300, flpCustomFields.ClientSize.Width - 25)
+            Dim row As New Panel With {.Width = rowWidth, .Height = 32}
+
+            Dim labelText As String = field.FieldLabel
+            If field.IsRequired Then
+                labelText &= " *"
+            End If
+
+            Dim lbl As New Label With {
+                .AutoSize = False,
+                .Text = labelText,
+                .Width = 140,
+                .TextAlign = ContentAlignment.MiddleLeft,
+                .Location = New Point(0, 5)
+            }
+
+            Dim input As Control = BuildCustomFieldControl(field)
+            input.Location = New Point(lbl.Width + 6, 2)
+            input.Width = Math.Max(120, rowWidth - lbl.Width - 10)
+
+            row.Controls.Add(lbl)
+            row.Controls.Add(input)
+            row.Height = Math.Max(32, input.Height + 6)
+            flpCustomFields.Controls.Add(row)
+            CustomFieldControls(field.Id) = input
+        Next
+
+        flpCustomFields.ResumeLayout()
+    End Sub
+
+    Private Function BuildCustomFieldControl(ByVal field As StudentFieldDef) As Control
+        Dim fieldType As String = If(field.FieldType, String.Empty).Trim().ToLowerInvariant()
+        Select Case fieldType
+            Case "date"
+                Dim picker As New DateTimePicker With {
+                    .Format = DateTimePickerFormat.Short,
+                    .ShowCheckBox = Not field.IsRequired
+                }
+                If picker.ShowCheckBox Then
+                    picker.Checked = False
+                End If
+                Return picker
+            Case "dropdown"
+                Dim combo As New ComboBox With {.DropDownStyle = ComboBoxStyle.DropDownList}
+                If Not String.IsNullOrWhiteSpace(field.Options) Then
+                    Dim items As String() = field.Options.Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries)
+                    For Each item As String In items
+                        combo.Items.Add(item.Trim())
+                    Next
+                End If
+                combo.SelectedIndex = -1
+                Return combo
+            Case "multiline"
+                Dim box As New TextBox With {.Multiline = True, .Height = 50, .ScrollBars = ScrollBars.Vertical}
+                Return box
+            Case Else
+                Dim text As New TextBox()
+                Return text
+        End Select
+    End Function
+
+    Private Function CollectCustomFieldValues() As Dictionary(Of Integer, String)
+        Dim values As New Dictionary(Of Integer, String)()
+        For Each field As StudentFieldDef In CustomFields
+            If Not CustomFieldControls.ContainsKey(field.Id) Then
+                Continue For
+            End If
+            Dim value As String = GetCustomFieldValue(field, CustomFieldControls(field.Id))
+            If field.IsRequired AndAlso String.IsNullOrWhiteSpace(value) Then
+                MessageBox.Show(field.FieldLabel & " is required.")
+                Return Nothing
+            End If
+            If Not String.IsNullOrWhiteSpace(value) Then
+                values(field.Id) = value
+            End If
+        Next
+        Return values
+    End Function
+
+    Private Function GetCustomFieldValue(ByVal field As StudentFieldDef, ByVal control As Control) As String
+        Dim fieldType As String = If(field.FieldType, String.Empty).Trim().ToLowerInvariant()
+        Select Case fieldType
+            Case "date"
+                Dim picker As DateTimePicker = TryCast(control, DateTimePicker)
+                If picker IsNot Nothing Then
+                    If Not picker.ShowCheckBox OrElse picker.Checked Then
+                        Return picker.Value.ToString("yyyy-MM-dd")
+                    End If
+                End If
+            Case "dropdown"
+                Dim combo As ComboBox = TryCast(control, ComboBox)
+                If combo IsNot Nothing AndAlso combo.SelectedItem IsNot Nothing Then
+                    Return combo.SelectedItem.ToString().Trim()
+                End If
+            Case "multiline"
+                Dim box As TextBox = TryCast(control, TextBox)
+                If box IsNot Nothing Then
+                    Return box.Text.Trim()
+                End If
+            Case Else
+                Dim box As TextBox = TryCast(control, TextBox)
+                If box IsNot Nothing Then
+                    Return box.Text.Trim()
+                End If
+        End Select
+        Return String.Empty
+    End Function
+
+    Private Sub ResetCustomFields()
+        For Each ctrl As Control In CustomFieldControls.Values
+            If TypeOf ctrl Is TextBox Then
+                CType(ctrl, TextBox).Text = String.Empty
+            ElseIf TypeOf ctrl Is ComboBox Then
+                CType(ctrl, ComboBox).SelectedIndex = -1
+            ElseIf TypeOf ctrl Is DateTimePicker Then
+                Dim picker As DateTimePicker = CType(ctrl, DateTimePicker)
+                picker.Value = Date.Today
+                If picker.ShowCheckBox Then
+                    picker.Checked = False
+                End If
+            ElseIf TypeOf ctrl Is CheckBox Then
+                CType(ctrl, CheckBox).Checked = False
+            End If
+        Next
     End Sub
 
     Private Function GetSelectedSectionId() As Object
@@ -522,6 +685,7 @@ Public Class Register
         Using cn As New MySqlConnection(Module1.ConnectionString)
             cn.Open()
             Using tx As MySqlTransaction = cn.BeginTransaction()
+                Dim customFields As List(Of StudentFieldDef) = StudentFieldStore.GetActiveFields()
                 Dim processed As Integer = 0
                 For Each row As DataRow In dt.Rows
                     Dim regno As String = GetField(row, "regno", "reg_no", "registration_no", "registration number")
@@ -539,6 +703,11 @@ Public Class Register
                         Continue For
                     End If
                     If String.IsNullOrWhiteSpace(sectionName) OrElse String.IsNullOrWhiteSpace(yearName) Then
+                        Continue For
+                    End If
+
+                    Dim customValues As Dictionary(Of Integer, String) = ExtractCustomFieldValues(row, customFields)
+                    If customValues Is Nothing Then
                         Continue For
                     End If
 
@@ -571,6 +740,10 @@ Public Class Register
                         cmd.Parameters.AddWithValue("@passport", passportValue)
                         cmd.ExecuteNonQuery()
                     End Using
+
+                    If customValues.Count > 0 Then
+                        StudentFieldStore.UpsertFieldValues(regno.Trim(), customValues, cn, tx)
+                    End If
                     processed += 1
                 Next
                 tx.Commit()
@@ -647,6 +820,26 @@ Public Class Register
         Return String.Empty
     End Function
 
+    Private Function ExtractCustomFieldValues(ByVal row As DataRow, ByVal fields As List(Of StudentFieldDef)) As Dictionary(Of Integer, String)
+        Dim values As New Dictionary(Of Integer, String)()
+        If fields Is Nothing OrElse fields.Count = 0 Then
+            Return values
+        End If
+
+        For Each field As StudentFieldDef In fields
+            Dim value As String = GetField(row, field.FieldKey, field.FieldLabel)
+            If String.IsNullOrWhiteSpace(value) Then
+                If field.IsRequired Then
+                    Return Nothing
+                End If
+                Continue For
+            End If
+            values(field.Id) = value.Trim()
+        Next
+
+        Return values
+    End Function
+
     Private Sub BulkImportPhotos(ByVal folderPath As String)
         Dim extensions As String() = {".jpg", ".jpeg", ".png", ".bmp", ".gif"}
         Dim files As IEnumerable(Of String) = Directory.EnumerateFiles(folderPath).Where(Function(f) extensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
@@ -688,6 +881,37 @@ Public Class Register
                 End Using
             End Using
         End Using
+        Dim customFields As List(Of StudentFieldDef) = StudentFieldStore.GetActiveFields()
+        If customFields Is Nothing OrElse customFields.Count = 0 Then
+            Return dt
+        End If
+
+        Dim fieldColumnMap As New Dictionary(Of Integer, String)()
+        For Each field As StudentFieldDef In customFields
+            Dim colName As String = EnsureUniqueColumnName(dt, field.FieldLabel)
+            fieldColumnMap(field.Id) = colName
+            If Not dt.Columns.Contains(colName) Then
+                dt.Columns.Add(colName)
+            End If
+        Next
+
+        Dim valueMap As Dictionary(Of String, Dictionary(Of Integer, String)) = StudentFieldStore.GetFieldValuesMap()
+        For Each row As DataRow In dt.Rows
+            Dim regno As String = row("RegNo").ToString()
+            If String.IsNullOrWhiteSpace(regno) Then
+                Continue For
+            End If
+            If Not valueMap.ContainsKey(regno) Then
+                Continue For
+            End If
+            Dim values As Dictionary(Of Integer, String) = valueMap(regno)
+            For Each field As StudentFieldDef In customFields
+                Dim colName As String = fieldColumnMap(field.Id)
+                If values.ContainsKey(field.Id) Then
+                    row(colName) = values(field.Id)
+                End If
+            Next
+        Next
         Return dt
     End Function
 
@@ -736,6 +960,17 @@ Public Class Register
         Dim colNames As IEnumerable(Of String) = dt.Columns.Cast(Of DataColumn)().Select(Function(c) "[" & c.ColumnName & "]")
         Dim placeholders As IEnumerable(Of String) = dt.Columns.Cast(Of DataColumn)().Select(Function(c) "?")
         Return "INSERT INTO [" & sheetName & "] (" & String.Join(",", colNames) & ") VALUES (" & String.Join(",", placeholders) & ")"
+    End Function
+
+    Private Function EnsureUniqueColumnName(ByVal dt As DataTable, ByVal baseName As String) As String
+        Dim safeName As String = If(String.IsNullOrWhiteSpace(baseName), "Field", baseName)
+        Dim name As String = safeName
+        Dim index As Integer = 2
+        While dt.Columns.Contains(name)
+            name = safeName & " (" & index.ToString() & ")"
+            index += 1
+        End While
+        Return name
     End Function
 
     Private Function EscapeCsv(ByVal value As String) As String

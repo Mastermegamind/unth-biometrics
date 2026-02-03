@@ -10,6 +10,8 @@ Public Module BackupService
         "attendance",
         "new_enrollment",
         "students",
+        "student_fields",
+        "student_field_values",
         "sessions",
         "session_settings",
         "sections",
