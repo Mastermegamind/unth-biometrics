@@ -90,6 +90,120 @@ Public Module SessionStore
         AuditLogger.LogAction("SessionSaved", info.DisplayText)
     End Sub
 
+    Public Function UpdateSession(ByVal sessionId As Integer, ByVal info As SessionInfo) As Boolean
+        If sessionId <= 0 OrElse info Is Nothing Then
+            Return False
+        End If
+
+        NormalizeInfo(info)
+        Dim updated As Boolean = False
+        Dim activeId As Integer = 0
+
+        Try
+            Using conn As New MySqlConnection(Module1.ConnectionString)
+                conn.Open()
+                Using cmd As New MySqlCommand("UPDATE sessions SET session_date = @date, day_name = @day, session_name = @session, course_code = @code, course_name = @name WHERE id = @id", conn)
+                    cmd.Parameters.AddWithValue("@date", info.SessionDate.Date)
+                    cmd.Parameters.AddWithValue("@day", info.DayName)
+                    cmd.Parameters.AddWithValue("@session", info.SessionName)
+                    cmd.Parameters.AddWithValue("@code", info.CourseCode)
+                    cmd.Parameters.AddWithValue("@name", If(String.IsNullOrWhiteSpace(info.CourseName), DBNull.Value, info.CourseName))
+                    cmd.Parameters.AddWithValue("@id", sessionId)
+                    updated = (cmd.ExecuteNonQuery() > 0)
+                End Using
+
+                If updated Then
+                    activeId = GetActiveSessionId(conn)
+                    If activeId = sessionId Then
+                        UpdateSessionSettings(conn, info, sessionId)
+                    End If
+                End If
+            End Using
+        Catch ex As Exception
+            AppLogger.LogError("Session update error", ex)
+        End Try
+
+        If updated Then
+            info.SessionId = sessionId
+            If cachedInfo IsNot Nothing AndAlso cachedInfo.SessionId = sessionId Then
+                cachedInfo = info
+                lastLoad = DateTime.Now
+            End If
+            AuditLogger.LogAction("SessionUpdated", info.DisplayText)
+        End If
+
+        Return updated
+    End Function
+
+    Public Function DeleteSession(ByVal sessionId As Integer) As Boolean
+        If sessionId <= 0 Then
+            Return False
+        End If
+
+        Dim deleted As Boolean = False
+        Dim activeId As Integer = 0
+
+        Try
+            Using conn As New MySqlConnection(Module1.ConnectionString)
+                conn.Open()
+                activeId = GetActiveSessionId(conn)
+
+                Using cmd As New MySqlCommand("DELETE FROM sessions WHERE id = @id", conn)
+                    cmd.Parameters.AddWithValue("@id", sessionId)
+                    deleted = (cmd.ExecuteNonQuery() > 0)
+                End Using
+
+                If deleted AndAlso activeId = sessionId Then
+                    EnsureSessionSettingsRow(conn)
+                    Dim fallback As SessionInfo = GetLatestSession(conn)
+                    If fallback Is Nothing Then
+                        fallback = BuildDefaultSession()
+                        UpdateSessionSettings(conn, fallback, 0)
+                    Else
+                        UpdateSessionSettings(conn, fallback, fallback.SessionId)
+                    End If
+                End If
+            End Using
+        Catch ex As Exception
+            AppLogger.LogError("Session delete error", ex)
+        End Try
+
+        If deleted Then
+            If cachedInfo IsNot Nothing AndAlso cachedInfo.SessionId = sessionId Then
+                cachedInfo = Nothing
+                lastLoad = DateTime.MinValue
+            End If
+            AuditLogger.LogAction("SessionDeleted", "ID=" & sessionId.ToString())
+        End If
+
+        Return deleted
+    End Function
+
+    Public Function GetAttendanceCount(ByVal sessionId As Integer) As Integer
+        If sessionId <= 0 Then
+            Return 0
+        End If
+
+        Try
+            Using conn As New MySqlConnection(Module1.ConnectionString)
+                conn.Open()
+                Using cmd As New MySqlCommand("SELECT COUNT(*) FROM attendance WHERE session_id = @id", conn)
+                    cmd.Parameters.AddWithValue("@id", sessionId)
+                    Dim result As Object = cmd.ExecuteScalar()
+                    If result IsNot Nothing AndAlso result IsNot DBNull.Value Then
+                        Return Convert.ToInt32(result)
+                    End If
+                End Using
+            End Using
+        Catch ex As MySqlException When ex.Number = 1054
+            Return 0
+        Catch ex As Exception
+            AppLogger.LogError("Session attendance count error", ex)
+        End Try
+
+        Return 0
+    End Function
+
     Public Function GetSessionsList() As List(Of SessionInfo)
         Dim result As New List(Of SessionInfo)()
 
@@ -143,6 +257,21 @@ Public Module SessionStore
         End If
     End Sub
 
+    Private Function GetActiveSessionId(ByVal conn As MySqlConnection) As Integer
+        Try
+            Using cmd As New MySqlCommand("SELECT active_session_id FROM session_settings LIMIT 1", conn)
+                Dim result As Object = cmd.ExecuteScalar()
+                If result IsNot Nothing AndAlso result IsNot DBNull.Value Then
+                    Return Convert.ToInt32(result)
+                End If
+            End Using
+        Catch ex As MySqlException When ex.Number = 1054
+            Return 0
+        End Try
+
+        Return 0
+    End Function
+
     Private Function LoadActiveSession() As SessionInfo
         Using conn As New MySqlConnection(Module1.ConnectionString)
             conn.Open()
@@ -186,6 +315,21 @@ Public Module SessionStore
         Try
             Using cmd As New MySqlCommand("SELECT id, session_date, day_name, session_name, course_code, course_name FROM sessions WHERE id = @id", conn)
                 cmd.Parameters.AddWithValue("@id", sessionId)
+                Using reader As MySqlDataReader = cmd.ExecuteReader()
+                    If reader.Read() Then
+                        Return ReadSession(reader, 0, 1, 2, 3, 4, 5)
+                    End If
+                End Using
+            End Using
+        Catch ex As MySqlException
+        End Try
+
+        Return Nothing
+    End Function
+
+    Private Function GetLatestSession(ByVal conn As MySqlConnection) As SessionInfo
+        Try
+            Using cmd As New MySqlCommand("SELECT id, session_date, day_name, session_name, course_code, course_name FROM sessions ORDER BY session_date DESC, id DESC LIMIT 1", conn)
                 Using reader As MySqlDataReader = cmd.ExecuteReader()
                     If reader.Read() Then
                         Return ReadSession(reader, 0, 1, 2, 3, 4, 5)
